@@ -7,12 +7,11 @@ ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
 echo "Installing clutch..."
 
 # Add to .zshrc if not already present
-if ! grep -q 'clutch.zsh' "$ZSHRC" 2>/dev/null; then
+if ! grep -q 'clutch' "$ZSHRC" 2>/dev/null; then
   cat >> "$ZSHRC" <<EOF
 
-# clutch — Claude tab-completion and utilities
+# clutch — Claude tab-completion
 fpath=("$SCRIPT_DIR" \$fpath)
-source "$SCRIPT_DIR/clutch.zsh"
 autoload -Uz compinit && compinit
 EOF
   echo "Added clutch to $ZSHRC"
