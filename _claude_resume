@@ -18,7 +18,7 @@ _claude_resume() {
   fi
 
   local -a completions
-  completions=($(python3 -c "
+  completions=("${(f)$(python3 -c "
 import json, glob, os, time
 
 now = time.time()
@@ -97,7 +97,7 @@ for mtime, sid in sessions[:30]:
 
     desc = ' | '.join(parts)
     print(f'{esc(sid)}:{esc(desc)}')
-" 2>/dev/null))
+" 2>/dev/null)}")
 
   _describe 'session' completions
 }
