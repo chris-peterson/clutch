@@ -34,21 +34,6 @@ def format_age(ts):
     else:
         return f'{int(age/86400)}d ago'
 
-def decode_project_dir(dirname):
-    s = dirname.lstrip('-')
-    parts = s.split('-')
-    path = '/' + parts[0]
-    for i in range(1, len(parts)):
-        candidate = path + '/' + parts[i]
-        joined = path + '-' + parts[i]
-        if os.path.isdir(candidate):
-            path = candidate
-        elif os.path.isdir(joined):
-            path = joined
-        else:
-            path = candidate
-    return path
-
 def esc(s):
     return s.replace('\\\\', '\\\\\\\\').replace(':', '\\\\:')
 
@@ -76,32 +61,24 @@ for f in glob.glob(os.path.expanduser('~/.claude/sessions/*.json')):
     except Exception:
         pass
 
-# Collect all sessions from projects
 cwd = os.getcwd()
 cwd_encoded = cwd.replace('/', '-')
 local_sessions = []
-other_sessions = []
-for proj_dir in glob.glob(os.path.expanduser('~/.claude/projects/*')):
-    dirname = os.path.basename(proj_dir)
-    is_local = (dirname == cwd_encoded)
+proj_dir = os.path.expanduser('~/.claude/projects/' + cwd_encoded)
+if os.path.isdir(proj_dir):
     for f in glob.glob(os.path.join(proj_dir, '*.jsonl')):
         try:
             sid = os.path.splitext(os.path.basename(f))[0]
             mtime = os.path.getmtime(f)
-            entry = (mtime, sid, dirname)
-            if is_local:
-                local_sessions.append(entry)
-            else:
-                other_sessions.append(entry)
+            local_sessions.append((mtime, sid))
         except Exception:
             pass
 
 local_sessions.sort(key=lambda x: -x[0])
-other_sessions.sort(key=lambda x: -x[0])
-sessions = local_sessions + other_sessions
+sessions = local_sessions
 
 seen = set()
-for mtime, sid, dirname in sessions[:30]:
+for mtime, sid in sessions[:30]:
     if sid in seen:
         continue
     seen.add(sid)
@@ -109,10 +86,7 @@ for mtime, sid, dirname in sessions[:30]:
     age = format_age(mtime)
 
     m = meta.get(sid)
-    if m and m.get('project_path'):
-        proj = os.path.basename(m['project_path'])
-    else:
-        proj = os.path.basename(decode_project_dir(dirname))
+    proj = os.path.basename(cwd)
 
     parts = [age, proj]
     if sid in names:
