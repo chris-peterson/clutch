@@ -1,0 +1,107 @@
+#compdef claude
+
+_claude_resume() {
+  local curcontext="$curcontext" state
+  local -a completions
+
+  _arguments -C \
+    '(-r --resume)'{-r,--resume}'[Resume a conversation]:session:->resume' \
+    '*:default:_default'
+
+  case "$state" in
+    resume)
+      completions=($(python3 -c "
+import json, glob, os, time
+
+now = time.time()
+
+# Collect named sessions from sessions/*.json (active/recent)
+named = {}
+for f in glob.glob(os.path.expanduser('~/.claude/sessions/*.json')):
+    try:
+        with open(f) as fh:
+            d = json.load(fh)
+        name = d.get('name', '')
+        sid = d.get('sessionId', '')
+        started = d.get('startedAt', 0) / 1000
+        if name and sid:
+            named[sid] = (started, name)
+    except Exception:
+        pass
+
+# Collect all sessions from projects/<dir>/*.jsonl
+sessions = []
+for proj_dir in glob.glob(os.path.expanduser('~/.claude/projects/*')):
+    proj_name = os.path.basename(proj_dir)
+    for f in glob.glob(os.path.join(proj_dir, '*.jsonl')):
+        try:
+            sid = os.path.splitext(os.path.basename(f))[0]
+            mtime = os.path.getmtime(f)
+            sessions.append((mtime, sid, proj_name))
+        except Exception:
+            pass
+
+# Enrich with session-meta for first_prompt
+meta_cache = {}
+for f in glob.glob(os.path.expanduser('~/.claude/usage-data/session-meta/*.json')):
+    sid = os.path.splitext(os.path.basename(f))[0]
+    try:
+        with open(f) as fh:
+            d = json.load(fh)
+        fp = d.get('first_prompt', '')
+        if fp and fp != 'No prompt':
+            meta_cache[sid] = fp
+    except Exception:
+        pass
+
+def format_age(ts):
+    age = now - ts
+    if age < 3600:
+        return f'{int(age/60)}m ago'
+    elif age < 86400:
+        return f'{int(age/3600)}h ago'
+    else:
+        return f'{int(age/86400)}d ago'
+
+def short_proj(proj_name):
+    parts = proj_name.lstrip('-').split('-')
+    # skip Users-<user>-src- prefix
+    try:
+        idx = parts.index('src')
+        parts = parts[idx+1:]
+    except ValueError:
+        pass
+    return '/'.join(parts[-2:]) if len(parts) > 2 else '/'.join(parts)
+
+sessions.sort(key=lambda x: -x[0])
+seen = set()
+for mtime, sid, proj_name in sessions[:30]:
+    if sid in seen:
+        continue
+    seen.add(sid)
+    age = format_age(mtime)
+    proj = short_proj(proj_name)
+
+    # Prefer explicit name, then first_prompt, then project path
+    if sid in named:
+        label = named[sid][1]
+    elif sid in meta_cache:
+        label = meta_cache[sid][:50]
+    else:
+        label = proj
+
+    desc = f'{age} {proj}'
+    if sid in named:
+        desc = f'{age} {proj} -- {named[sid][1]}'
+
+    safe_sid = sid.replace('\\\\', '\\\\\\\\').replace(':', '\\\\:')
+    safe_desc = desc.replace('\\\\', '\\\\\\\\').replace(':', '\\\\:')
+    print(f'{safe_sid}:{safe_desc}')
+" 2>/dev/null))
+
+      _describe 'session' completions
+      ;;
+  esac
+}
+
+_claude_resume "$@"
