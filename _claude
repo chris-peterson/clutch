@@ -57,13 +57,21 @@ _claude() {
 
   _arguments -s -S \
     $flags \
-    '1: :_describe "command" subcommands' \
+    '1: :->subcmd' \
     '*: :_default'
+
+  case $state in
+    subcmd)
+      _describe "command" subcommands
+      ;;
+  esac
 }
 
 _claude_resume_sessions() {
-  local -a completions
-  completions=("${(f)$(python3 -c "
+  local -a ids descs
+  local line
+
+  for line in "${(f)$(python3 -c "
 import json, glob, os, time
 
 now = time.time()
@@ -78,9 +86,6 @@ def format_age(ts):
         return f'{int(age/3600)}h ago'
     else:
         return f'{int(age/86400)}d ago'
-
-def esc(s):
-    return s.replace('\\\\', '\\\\\\\\').replace(':', '\\\\:')
 
 # Load session-meta index
 meta = {}
@@ -128,7 +133,6 @@ for mtime, sid in local_sessions[:30]:
     seen.add(sid)
 
     age = format_age(mtime)
-
     m = meta.get(sid)
     proj = os.path.basename(cwd)
 
@@ -136,14 +140,17 @@ for mtime, sid in local_sessions[:30]:
     if sid in names:
         parts.append(names[sid])
     elif m and m.get('first_prompt', '') not in ('', 'No prompt'):
-        snippet = m['first_prompt'][:40].replace('\\n', ' ')
+        snippet = m['first_prompt'][:40].replace('\n', ' ')
         parts.append(snippet)
 
     desc = ' | '.join(parts)
-    print(f'{esc(sid)}:{esc(desc)}')
-" 2>/dev/null)}")
+    print(f'{sid}\t{desc}')
+" 2>/dev/null)}"; do
+    ids+=("${line%%	*}")
+    descs+=("${line#*	}")
+  done
 
-  _describe 'session' completions
+  compadd -V sessions -l -d descs -a ids
 }
 
 _claude "$@"
