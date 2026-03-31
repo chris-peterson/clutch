@@ -1,9 +1,11 @@
 #compdef claude
+# Custom completion for the claude CLI.
+# Waiting for claude to ship official completions; remove this once they do.
 
-_claude_resume() {
+_claude() {
   local i resume_pos=-1
 
-  # Find if --resume/-r is on the line and where its argument would be
+  # Check if --resume/-r is already on the line and find where its argument goes
   for (( i=1; i < CURRENT; i++ )); do
     if [[ "${words[$i]}" == "--resume" || "${words[$i]}" == "-r" ]]; then
       resume_pos=$(( i + 1 ))
@@ -11,12 +13,55 @@ _claude_resume() {
     fi
   done
 
-  # If we're not completing the --resume argument, fall back to default
-  if (( resume_pos != CURRENT )); then
-    _default
+  # Complete the --resume argument with sessions (most recent first)
+  if (( resume_pos == CURRENT )); then
+    _claude_resume_sessions
     return
   fi
 
+  # Complete flags and subcommands
+  local -a flags=(
+    '--add-dir[Additional directories to allow tool access to]:directory:_directories'
+    '--agent[Agent for the current session]:agent:'
+    '--allowedTools[Tool names to allow]:tools:'
+    '--append-system-prompt[Append to the default system prompt]:prompt:'
+    '--bare[Minimal mode: skip hooks, LSP, plugins, auto-memory]'
+    {-c,--continue}'[Continue the most recent conversation]'
+    {-d,--debug}'[Enable debug mode]'
+    '--disallowedTools[Tool names to deny]:tools:'
+    '--effort[Effort level (low, medium, high, max)]:level:(low medium high max)'
+    '--fork-session[Create a new session ID when resuming]'
+    '--from-pr[Resume a session linked to a PR]:pr:'
+    {-h,--help}'[Display help]'
+    '--model[Model for the current session]:model:(sonnet opus haiku)'
+    {-n,--name}'[Set a display name for this session]:name:'
+    '--permission-mode[Permission mode]:mode:(acceptEdits bypassPermissions default dontAsk plan auto)'
+    {-p,--print}'[Print response and exit]'
+    {-r,--resume}'[Resume a conversation]:session:_claude_resume_sessions'
+    '--system-prompt[System prompt for the session]:prompt:'
+    '--verbose[Override verbose mode setting]'
+    {-v,--version}'[Output the version number]'
+    {-w,--worktree}'[Create a new git worktree]'
+  )
+
+  local -a subcommands=(
+    'agents:List configured agents'
+    'auth:Manage authentication'
+    'doctor:Check auto-updater health'
+    'install:Install Claude Code native build'
+    'mcp:Configure and manage MCP servers'
+    'plugin:Manage Claude Code plugins'
+    'setup-token:Set up a long-lived auth token'
+    'update:Check for updates and install'
+  )
+
+  _arguments -s -S \
+    $flags \
+    '1: :_describe "command" subcommands' \
+    '*: :_default'
+}
+
+_claude_resume_sessions() {
   local -a completions
   completions=("${(f)$(python3 -c "
 import json, glob, os, time
@@ -75,10 +120,9 @@ if os.path.isdir(proj_dir):
             pass
 
 local_sessions.sort(key=lambda x: -x[0])
-sessions = local_sessions
 
 seen = set()
-for mtime, sid in sessions[:30]:
+for mtime, sid in local_sessions[:30]:
     if sid in seen:
         continue
     seen.add(sid)
@@ -102,4 +146,4 @@ for mtime, sid in sessions[:30]:
   _describe 'session' completions
 }
 
-_claude_resume "$@"
+_claude "$@"
